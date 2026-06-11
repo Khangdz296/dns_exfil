@@ -40,8 +40,9 @@ import tldextract
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-log = logging.getLogger(__name__)
+from tools.logging_utils import setup_pipeline_logger
+
+log = setup_pipeline_logger(__name__)
 
 # TF-IDF configuration (matches PLAN.md design)
 ANALYZER = "char"

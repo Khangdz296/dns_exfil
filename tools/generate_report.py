@@ -11,8 +11,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-log = logging.getLogger(__name__)
+from tools.logging_utils import setup_pipeline_logger
+
+log = setup_pipeline_logger(__name__)
 
 THRESHOLD = 0.6
 DGA_HIGH_THRESHOLD = 0.75

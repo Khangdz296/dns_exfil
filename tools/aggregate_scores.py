@@ -11,8 +11,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-log = logging.getLogger(__name__)
+from tools.logging_utils import setup_pipeline_logger
+
+log = setup_pipeline_logger(__name__)
 
 # Weights (must sum to 1.0)
 ENTROPY_WEIGHT = 0.3

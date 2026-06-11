@@ -12,8 +12,9 @@ import math
 from pathlib import Path
 from collections import Counter
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-log = logging.getLogger(__name__)
+from tools.logging_utils import setup_pipeline_logger
+
+log = setup_pipeline_logger(__name__)
 
 
 def calculate_subdomain_entropy(subdomain: str) -> float:

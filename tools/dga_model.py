@@ -23,8 +23,9 @@ from typing import Any
 import joblib
 import numpy as np
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-log = logging.getLogger(__name__)
+from tools.logging_utils import setup_pipeline_logger
+
+log = setup_pipeline_logger(__name__)
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT_DIR / "models" / "dga_model.pkl"
