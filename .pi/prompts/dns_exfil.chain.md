@@ -2,18 +2,31 @@
 
 Full pipeline for DNS exfiltration detection with parallel Stage 2 analysis.
 
-## Stage 1 — Data Ingestion (Sequential)
+## Stage 1 - Data Ingestion (Sequential)
 
 run: pcap_reader_agent
+  mode: pcap
   input: data/input/demo.pcap
   output: data/output/raw_packets.json
 
+# Optional live capture mode for local runs:
+# run: pcap_reader_agent
+#   mode: live
+#   interface: default
+#   timeout: 30
+#   max_packets: 1000
+#   output: data/output/raw_packets.json
+
 run: dns_extractor_agent
   packets: data/output/raw_packets.json
-  csv: data/input/dns_tunneling.csv
   output: data/output/dns_queries.json
 
-## Stage 2 — Parallel Analysis
+# Optional CSV-only dataset mode:
+# run: dns_extractor_agent
+#   csv: data/input/dns_tunneling.csv
+#   output: data/output/dns_queries.json
+
+## Stage 2 - Parallel Analysis
 
 /parallel
 
@@ -33,7 +46,7 @@ run: embedding_agent
 
 /end_parallel
 
-## Stage 3 — Orchestration & Report (Sequential)
+## Stage 3 - Orchestration & Report (Sequential)
 
 run: orchestrator_agent
   entropy: data/output/entropy_scores.json

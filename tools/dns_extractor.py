@@ -11,8 +11,11 @@ Outputs data/output/dns_queries.json consumed by all Stage-2 agents.
 
 import json
 import logging
+import os
 from collections import Counter
 from pathlib import Path
+
+os.environ.setdefault("WINDIR", r"C:\Windows")
 
 import pandas as pd
 import tldextract

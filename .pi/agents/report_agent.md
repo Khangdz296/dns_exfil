@@ -28,6 +28,7 @@ analysts.
    - Executive Summary
    - Top N Suspicious Domains
    - Score Breakdown
+   - Hybrid Verdict Rule
    - Source Distribution
    - Recommendations
 5. Write the report to `data/output/exfil_report.md`.
@@ -58,11 +59,16 @@ Markdown table with columns:
 - Brief explanation of the 3 detection methods
 - Weight distribution: 30% entropy, 40% DGA, 30% embedding
 
-#### 4. Source Distribution
+#### 4. Hybrid Verdict Rule
+- Weighted score threshold
+- High DGA probability fallback
+- Entropy and embedding agreement fallback
+
+#### 5. Source Distribution
 - Counts and percentages grouped by `source`
 - Expected source values include `pcap`, `csv`, and `unknown`
 
-#### 5. Recommendations
+#### 6. Recommendations
 - Immediate actions, such as block or investigate suspected domains
 - Long-term measures, such as DNS firewall rules and DNS entropy monitoring
 

@@ -2,7 +2,8 @@
 name: orchestrator_agent
 description: >
   Aggregates scores from 3 Stage-2 agents (entropy, DGA, embedding) using
-  weighted average. Applies threshold to classify suspected exfiltration.
+  weighted average plus hybrid fallback rules to classify suspected
+  exfiltration.
 tools:
   - aggregate_scores
 version: "1.1"
@@ -29,12 +30,15 @@ Three JSON files from Stage 2:
 4. Normalize entropy score: `entropy_score / 5.17` into the 0.0-1.0 range.
 5. Calculate weighted average:
    - `combined_score = 0.3*entropy_norm + 0.4*dga_score + 0.3*embed_score`
-6. Apply verdict threshold:
-   - `combined_score > 0.6` -> `suspected`
+6. Apply the hybrid verdict rule:
+   - `combined_score >= 0.6` -> `suspected`
+   - OR `dga_score >= 0.75` -> `suspected`
+   - OR `entropy_norm >= 0.65 AND embed_score >= 0.85` -> `suspected`
    - otherwise -> `benign`
-7. Preserve `source` from Stage-2 records for report source distribution.
-8. Write enriched results to `data/output/scores.json`.
-9. Log total processed and suspected count.
+7. Add `risk_reasons` explaining which signals triggered.
+8. Preserve `source` from Stage-2 records for report source distribution.
+9. Write enriched results to `data/output/scores.json`.
+10. Log total processed and suspected count.
 
 ## Output contract
 Write a JSON array to `data/output/scores.json`.
@@ -47,10 +51,12 @@ Each item must contain:
 | `label`          | string  | Ground truth label                   |
 | `source`         | string  | Data source: `pcap`, `csv`, unknown |
 | `entropy_score`  | float   | Raw entropy score                    |
+| `entropy_norm`   | float   | Normalized entropy, 0.0-1.0          |
 | `dga_score`      | float   | DGA probability, 0.0-1.0             |
 | `embed_score`    | float   | Embedding distance, 0.0-1.0          |
 | `combined_score` | float   | Weighted average, 0.0-1.0            |
 | `verdict`        | string  | `benign` or `suspected`              |
+| `risk_reasons`   | array   | Triggered detection reason codes     |
 
 ## Scoring formula
 
@@ -65,12 +71,12 @@ entropy_normalized = min(max(entropy_score / 5.17, 0.0), 1.0)
 combined_score = 0.3*entropy_normalized + 0.4*dga_score + 0.3*embed_score
 ```
 
-### Verdict
+### Hybrid verdict
 ```text
-if combined_score > 0.6:
-    verdict = "suspected"
-else:
-    verdict = "benign"
+suspected if:
+  combined_score >= 0.6
+  OR dga_score >= 0.75
+  OR (entropy_normalized >= 0.65 AND embed_score >= 0.85)
 ```
 
 ## Output sorting

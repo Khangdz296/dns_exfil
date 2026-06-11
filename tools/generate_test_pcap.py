@@ -10,7 +10,11 @@ Run:
     python tools/generate_test_pcap.py data/input/demo_mixed.pcap
 """
 
+import os
 from pathlib import Path
+
+os.environ.setdefault("WINDIR", r"C:\Windows")
+
 from scapy.all import IP, UDP, DNS, DNSQR, wrpcap
 
 OUTPUT_PATH = Path("data/input/demo.pcap")

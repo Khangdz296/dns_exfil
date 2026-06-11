@@ -52,10 +52,12 @@ Also writes a JSON array to `output_path`.
 | `label`          | str    | Ground-truth label if available          |
 | `source`         | str    | Data source, such as `pcap` or `csv`     |
 | `entropy_score`  | float  | Raw entropy score                        |
+| `entropy_norm`   | float  | Normalized entropy score                 |
 | `dga_score`      | float  | DGA probability                          |
 | `embed_score`    | float  | Embedding anomaly score                  |
 | `combined_score` | float  | Final weighted score                     |
 | `verdict`        | str    | `benign` or `suspected`                  |
+| `risk_reasons`   | list   | Detection signals that triggered risk    |
 
 ## Algorithm
 1. Load all three Stage-2 JSON arrays.
@@ -64,8 +66,12 @@ Also writes a JSON array to `output_path`.
 4. Normalize entropy with `min(max(entropy_score / 5.17, 0.0), 1.0)`.
 5. Compute:
    `combined_score = 0.3*entropy_norm + 0.4*dga_score + 0.3*embed_score`
-6. Set `verdict = "suspected"` when `combined_score > 0.6`.
-7. Sort output by `combined_score` descending.
+6. Set `verdict = "suspected"` when any hybrid rule is true:
+   - `combined_score >= 0.6`
+   - `dga_score >= 0.75`
+   - `entropy_norm >= 0.65 and embed_score >= 0.85`
+7. Add `risk_reasons` for the matched signals.
+8. Sort output by `combined_score` descending.
 
 ## Error handling
 - Missing input file -> structured error

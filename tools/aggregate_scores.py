@@ -24,6 +24,9 @@ MAX_ENTROPY = 5.17
 
 # Threshold for suspected exfiltration
 THRESHOLD = 0.6
+DGA_HIGH_THRESHOLD = 0.75
+ENTROPY_EMBED_ENTROPY_THRESHOLD = 0.65
+ENTROPY_EMBED_EMBED_THRESHOLD = 0.85
 
 REQUIRED_SCORE_FIELDS = {
     "entropy": "entropy_score",
@@ -168,6 +171,49 @@ def load_scores(entropy_path: str, dga_path: str, embed_path: str) -> Dict[int, 
     return merged
 
 
+def _build_risk_reasons(
+    entropy_norm: float,
+    dga_score: float,
+    embed_score: float,
+    combined_score: float,
+) -> list[str]:
+    """Explain which detection signals contributed to a suspicious verdict."""
+    reasons: list[str] = []
+
+    if combined_score >= THRESHOLD:
+        reasons.append("combined_score_above_threshold")
+    if dga_score >= DGA_HIGH_THRESHOLD:
+        reasons.append("high_dga_probability")
+    if entropy_norm >= ENTROPY_EMBED_ENTROPY_THRESHOLD:
+        reasons.append("high_entropy")
+    if embed_score >= ENTROPY_EMBED_EMBED_THRESHOLD:
+        reasons.append("far_from_benign_embedding")
+    if (
+        entropy_norm >= ENTROPY_EMBED_ENTROPY_THRESHOLD
+        and embed_score >= ENTROPY_EMBED_EMBED_THRESHOLD
+    ):
+        reasons.append("entropy_embedding_agreement")
+
+    return reasons
+
+
+def _is_suspected(
+    entropy_norm: float,
+    dga_score: float,
+    embed_score: float,
+    combined_score: float,
+) -> bool:
+    """Hybrid verdict rule: weighted score plus high-confidence fallback rules."""
+    return (
+        combined_score >= THRESHOLD
+        or dga_score >= DGA_HIGH_THRESHOLD
+        or (
+            entropy_norm >= ENTROPY_EMBED_ENTROPY_THRESHOLD
+            and embed_score >= ENTROPY_EMBED_EMBED_THRESHOLD
+        )
+    )
+
+
 def aggregate_scores(
     entropy_path: str,
     dga_path: str,
@@ -177,8 +223,8 @@ def aggregate_scores(
     """
     Aggregate scores from 3 Stage-2 agents using weighted average.
 
-    Combined score = 0.3*entropy_norm + 0.4*dga + 0.3*embed
-    Verdict: combined_score > 0.6 -> suspected exfiltration
+    Combined score = 0.3*entropy_norm + 0.4*dga + 0.3*embed.
+    Verdict uses the weighted score plus high-confidence fallback rules.
     """
     log.info("Loading scores from Stage 2 agents...")
     merged = load_scores(entropy_path, dga_path, embed_path)
@@ -200,7 +246,8 @@ def aggregate_scores(
             + EMBED_WEIGHT * embed
         )
 
-        verdict = "suspected" if combined > THRESHOLD else "benign"
+        verdict = "suspected" if _is_suspected(entropy_norm, dga, embed, combined) else "benign"
+        risk_reasons = _build_risk_reasons(entropy_norm, dga, embed, combined)
         if verdict == "suspected":
             suspected_count += 1
 
@@ -210,10 +257,12 @@ def aggregate_scores(
             "label": data["label"],
             "source": data["source"],
             "entropy_score": round(data["entropy_score"], 4),
+            "entropy_norm": round(entropy_norm, 4),
             "dga_score": round(dga, 6),
             "embed_score": round(embed, 4),
             "combined_score": round(combined, 4),
             "verdict": verdict,
+            "risk_reasons": risk_reasons,
         })
 
     results.sort(key=lambda x: x["combined_score"], reverse=True)

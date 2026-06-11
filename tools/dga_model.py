@@ -1,77 +1,42 @@
 """
-dga_model.py
-============
-Tool vận hành (Inference Tool) cho ``dga_classifier_agent`` trong dự án
-DNS Exfiltration Detector.
+tools/dga_model.py
+Stage 2 - dga_classifier_agent tool
 
-Mô-đun này cung cấp hàm ``score_dga`` để chấm điểm nguy cơ DGA cho một
-danh sách các DNS query, dựa trên mô hình RandomForest đã được huấn luyện
-ngoại tuyến bởi ``tools/train_dga_model.py``.
+Runs DGA inference with the pre-trained RandomForest model produced by
+tools/train_dga_model.py.
 
-Quy trình hoạt động:
-    1. Tải mô hình từ file ``models/dga_model.pkl`` (lazy-load, cache lại
-       sau lần đầu tiên để tối ưu hiệu suất trong môi trường agent).
-    2. Với mỗi DNS query trong danh sách đầu vào, áp dụng cùng bước
-       Feature Engineering như lúc training (7 đặc trưng).
-    3. Dùng ``predict_proba()`` để lấy xác suất nhãn ``malicious``.
-    4. Ghi giá trị xác suất vào key ``dga_score`` của từng bản ghi.
-    5. Trả về danh sách đã được cập nhật — **không ghi đè file JSON**.
-
-Tác giả  : DNS Exfiltration Detector Team
-Phiên bản: 1.0.0
+Public APIs:
+- score_dga(queries, model_path): in-memory scoring for agent/tool calls.
+- score_dga_file(input_path, output_path, model_path): file-based wrapper for
+  the Pi chain, writing data/output/dga_scores.json.
 """
 
 from __future__ import annotations
 
 import copy
 import json
-import os
+import logging
 import sys
 from pathlib import Path
 from typing import Any
 
 import joblib
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
 
-# ---------------------------------------------------------------------------
-# Đường dẫn mặc định
-# ---------------------------------------------------------------------------
-ROOT_DIR: Path = Path(__file__).resolve().parent.parent
-MODEL_PATH: Path = ROOT_DIR / "models" / "dga_model.pkl"
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log = logging.getLogger(__name__)
 
-# Tập ký tự nguyên âm (phải nhất quán với file training)
-VOWELS: frozenset[str] = frozenset("aeiou")
+ROOT_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = ROOT_DIR / "models" / "dga_model.pkl"
+VOWELS = frozenset("aeiou")
 
-# Cache mô hình trong bộ nhớ để tránh tải lại nhiều lần khi agent gọi
-# liên tiếp trong cùng một phiên làm việc.
-_MODEL_CACHE: dict[str, RandomForestClassifier] = {}
+_MODEL_CACHE: dict[str, Any] = {}
 
-
-# ---------------------------------------------------------------------------
-# Feature Engineering (nhất quán 100% với train_dga_model.py)
-# ---------------------------------------------------------------------------
 
 def _compute_subdomain_features(subdomain: str) -> dict[str, float]:
-    """Tính 4 đặc trưng thống kê từ chuỗi subdomain.
-
-    Đây là bản sao chính xác của hàm cùng tên trong ``train_dga_model.py``
-    nhằm đảm bảo tính nhất quán tuyệt đối giữa giai đoạn huấn luyện và
-    suy luận (training-serving parity).
-
-    Parameters
-    ----------
-    subdomain : str
-        Chuỗi subdomain cần phân tích (có thể rỗng).
-
-    Returns
-    -------
-    dict[str, float]
-        Từ điển gồm 4 khoá:
-        ``subdomain_length``, ``vowel_ratio``,
-        ``consonant_ratio``, ``unique_char_ratio``.
-    """
-    length: int = len(subdomain)
+    """Compute the same subdomain features used during DGA model training."""
+    subdomain = str(subdomain or "")
+    length = len(subdomain)
     if length == 0:
         return {
             "subdomain_length": 0.0,
@@ -80,241 +45,200 @@ def _compute_subdomain_features(subdomain: str) -> dict[str, float]:
             "unique_char_ratio": 0.0,
         }
 
-    alpha_chars: list[str] = [c for c in subdomain.lower() if c.isalpha()]
-    alpha_count: int = len(alpha_chars)
-
-    vowel_count: int = sum(1 for c in alpha_chars if c in VOWELS)
-    consonant_count: int = alpha_count - vowel_count
-    unique_char_count: int = len(set(subdomain.lower()))
+    alpha_chars = [char for char in subdomain.lower() if char.isalpha()]
+    alpha_count = len(alpha_chars)
+    vowel_count = sum(1 for char in alpha_chars if char in VOWELS)
+    consonant_count = alpha_count - vowel_count
 
     return {
         "subdomain_length": float(length),
-        "vowel_ratio": vowel_count / alpha_count if alpha_count > 0 else 0.0,
-        "consonant_ratio": consonant_count / alpha_count if alpha_count > 0 else 0.0,
-        "unique_char_ratio": unique_char_count / length,
+        "vowel_ratio": vowel_count / alpha_count if alpha_count else 0.0,
+        "consonant_ratio": consonant_count / alpha_count if alpha_count else 0.0,
+        "unique_char_ratio": len(set(subdomain.lower())) / length,
     }
 
 
 def _extract_features(record: dict[str, Any]) -> list[float]:
-    """Trích xuất vector đặc trưng 7 chiều từ một bản ghi DNS query.
-
-    Thứ tự và cách tính hoàn toàn giống với hàm tương ứng trong script
-    huấn luyện để đảm bảo mô hình nhận đúng định dạng đầu vào.
-
-    Parameters
-    ----------
-    record : dict[str, Any]
-        Bản ghi DNS query chứa ít nhất các trường:
-        ``domain_length``, ``digit_ratio``, ``label_count``, ``subdomain``.
-
-    Returns
-    -------
-    list[float]
-        Vector đặc trưng 7 phần tử:
-        [domain_length, digit_ratio, label_count,
-         subdomain_length, vowel_ratio, consonant_ratio, unique_char_ratio]
-    """
-    sub_feats: dict[str, float] = _compute_subdomain_features(
-        record.get("subdomain", "")
-    )
+    """Extract the 7-feature vector expected by models/dga_model.pkl."""
+    subdomain_features = _compute_subdomain_features(record.get("subdomain", ""))
     return [
         float(record.get("domain_length", 0)),
         float(record.get("digit_ratio", 0.0)),
         float(record.get("label_count", 0)),
-        sub_feats["subdomain_length"],
-        sub_feats["vowel_ratio"],
-        sub_feats["consonant_ratio"],
-        sub_feats["unique_char_ratio"],
+        subdomain_features["subdomain_length"],
+        subdomain_features["vowel_ratio"],
+        subdomain_features["consonant_ratio"],
+        subdomain_features["unique_char_ratio"],
     ]
 
 
-# ---------------------------------------------------------------------------
-# Tải mô hình (lazy-load với cache)
-# ---------------------------------------------------------------------------
-
-def _load_model(model_path: Path = MODEL_PATH) -> RandomForestClassifier:
-    """Tải mô hình từ file .pkl, sử dụng cache nội bộ để tối ưu hiệu suất.
-
-    Mô hình chỉ được đọc từ đĩa một lần duy nhất trong suốt vòng đời
-    của tiến trình. Các lần gọi tiếp theo sẽ trả về đối tượng từ cache.
-
-    Parameters
-    ----------
-    model_path : Path, optional
-        Đường dẫn tới file ``dga_model.pkl``.
-
-    Returns
-    -------
-    RandomForestClassifier
-        Đối tượng mô hình đã được tải vào bộ nhớ.
-
-    Raises
-    ------
-    FileNotFoundError
-        Nếu file mô hình không tồn tại. Cần chạy ``train_dga_model.py``
-        trước để sinh ra file này.
-    """
-    cache_key: str = str(model_path)
+def _load_model(model_path: str | Path = MODEL_PATH) -> Any:
+    """Load the trained model once and cache it by path."""
+    path = Path(model_path)
+    cache_key = str(path.resolve())
     if cache_key not in _MODEL_CACHE:
-        if not model_path.exists():
-            raise FileNotFoundError(
-                f"Không tìm thấy file mô hình: {model_path}\n"
-                "Vui lòng chạy `tools/train_dga_model.py` để huấn luyện "
-                "và tạo file mô hình trước."
-            )
-        _MODEL_CACHE[cache_key] = joblib.load(model_path)
+        if not path.exists():
+            raise FileNotFoundError(f"DGA model not found: {path}")
+        _MODEL_CACHE[cache_key] = joblib.load(path)
     return _MODEL_CACHE[cache_key]
 
 
-# ---------------------------------------------------------------------------
-# Hàm chấm điểm chính (Public API)
-# ---------------------------------------------------------------------------
-
 def score_dga(
     queries: list[dict[str, Any]],
-    model_path: Path = MODEL_PATH,
+    model_path: str | Path = MODEL_PATH,
 ) -> list[dict[str, Any]]:
-    """Chấm điểm nguy cơ DGA cho danh sách các DNS query.
+    """
+    Score normalized DNS query records for DGA likelihood.
 
-    Đây là hàm Public API chính của mô-đun, được ``dga_classifier_agent``
-    gọi trong quy trình phát hiện DNS Exfiltration.
-
-    Với mỗi DNS query, hàm tính toán ``dga_score`` — xác suất mà tên miền
-    đó được sinh ra bởi thuật toán DGA (Domain Generation Algorithm).
-    Giá trị càng gần 1.0 thì nguy cơ càng cao.
-
-    Parameters
-    ----------
-    queries : list[dict[str, Any]]
-        Danh sách các bản ghi DNS query. Mỗi bản ghi là một ``dict``
-        có cấu trúc chuẩn của dự án, ví dụ::
-
-            {
-                "query_id": 1,
-                "timestamp": 0.0,
-                "src_ip": "10.0.0.5",
-                "domain": "a3f9bc12.evil.com",
-                "query_type": "A",
-                "subdomain": "a3f9bc12",
-                "tld": "com",
-                "label_count": 3,
-                "domain_length": 18,
-                "digit_ratio": 0.625,
-                "label": "malicious",
-                "count": 1,
-                "source": "pcap"
-            }
-
-        Các trường ``count`` và ``source`` có mặt trong schema nhưng
-        **không được sử dụng** cho feature extraction (xem ``_extract_features``).
-
-    model_path : Path, optional
-        Đường dẫn tới file mô hình ``.pkl``. Mặc định trỏ tới
-        ``models/dga_model.pkl`` tính từ thư mục gốc dự án.
-
-    Returns
-    -------
-    list[dict[str, Any]]
-        Danh sách bản ghi **mới** (deep copy), mỗi bản ghi được bổ sung
-        key ``dga_score`` kiểu ``float`` trong khoảng ``[0.0, 1.0]``.
-
-        Ví dụ bản ghi sau khi chấm điểm::
-
-            {
-                ...,
-                "dga_score": 0.87
-            }
-
-    Raises
-    ------
-    FileNotFoundError
-        Nếu file mô hình chưa được tạo.
-    ValueError
-        Nếu ``queries`` là danh sách rỗng.
-
-    Notes
-    -----
-    - Hàm **không** sửa đổi các dict trong danh sách đầu vào gốc
-      (sử dụng ``copy.deepcopy`` nội bộ).
-    - Hàm **không** ghi bất kỳ dữ liệu nào ra file. Việc lưu trữ
-      kết quả là trách nhiệm của Orchestrator Agent.
-    - Batch inference được thực hiện qua một lần gọi ``predict_proba``
-      duy nhất để tối ưu hiệu suất thay vì gọi từng bản ghi riêng lẻ.
+    Returns a deep copy of the input records with `dga_score` added.
     """
     if not queries:
-        raise ValueError("Danh sách `queries` không được rỗng.")
+        raise ValueError("queries must not be empty")
 
-    model: RandomForestClassifier = _load_model(model_path)
+    model = _load_model(model_path)
+    results = copy.deepcopy(queries)
 
-    # Deep copy để bảo toàn dữ liệu gốc
-    results: list[dict[str, Any]] = copy.deepcopy(queries)
-
-    # Xây dựng ma trận đặc trưng (batch) — hiệu quả hơn vòng lặp predict
-    feature_matrix: np.ndarray = np.array(
-        [_extract_features(rec) for rec in results],
+    feature_matrix = np.array(
+        [_extract_features(record) for record in results],
         dtype=np.float64,
     )
+    probability_matrix = model.predict_proba(feature_matrix)
+    malicious_scores = probability_matrix[:, 1]
 
-    # predict_proba trả về ma trận shape (n_samples, 2)
-    # Cột 0: xác suất benign, Cột 1: xác suất malicious
-    proba_matrix: np.ndarray = model.predict_proba(feature_matrix)
-    malicious_scores: np.ndarray = proba_matrix[:, 1]
-
-    # Ghi dga_score vào từng bản ghi kết quả
-    for rec, score in zip(results, malicious_scores):
-        rec["dga_score"] = round(float(score), 6)
+    for record, score in zip(results, malicious_scores):
+        record["dga_score"] = round(float(score), 6)
 
     return results
 
 
-# ---------------------------------------------------------------------------
-# Entry point — chạy test độc lập
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    """
-    Chạy test nhanh với dữ liệu mẫu cứng (không cần file JSON).
-    Mục đích: kiểm tra pipeline inference end-to-end sau khi đã có
-    file mô hình từ bước huấn luyện.
-
-    Cách chạy:
-        python tools/dga_model.py
-        python tools/dga_model.py /path/to/custom_model.pkl
-    """
-    SAMPLE_QUERIES: list[dict[str, Any]] = [
-        
-    ]
-
-    # Cho phép ghi đè đường dẫn mô hình qua CLI
-    custom_model_path: Path = Path(sys.argv[1]) if len(sys.argv) > 1 else MODEL_PATH
-
-    print("=" * 60)
-    print("      DGA MODEL — INFERENCE TOOL (SELF-TEST)")
-    print("=" * 60)
-    print(f"  Model path : {custom_model_path}")
-    print(f"  Queries    : {len(SAMPLE_QUERIES)} bản ghi")
-    print("=" * 60)
+def _load_queries(input_path: str) -> list[dict[str, Any]] | dict[str, Any]:
+    """Load dns_queries.json as a JSON array or {queries: [...]} object."""
+    input_file = Path(input_path)
+    if not input_file.exists():
+        return {"error": "file_not_found", "path": str(input_file)}
 
     try:
-        scored: list[dict[str, Any]] = score_dga(SAMPLE_QUERIES, model_path=custom_model_path)
+        with open(input_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as exc:
+        return {"error": "invalid_json", "path": str(input_file), "detail": str(exc)}
+    except OSError as exc:
+        return {"error": "read_failed", "path": str(input_file), "detail": str(exc)}
 
-        print(f"\n{'ID':>4}  {'Domain':<26} {'Label':<12} {'DGA Score':>10}")
-        print("-" * 58)
-        for rec in scored:
-            score_bar: str = "▓" * int(rec["dga_score"] * 20)
-            print(
-                f"{rec['query_id']:>4}  {rec['domain']:<26} "
-                f"{rec.get('label', 'N/A'):<12} "
-                f"{rec['dga_score']:>8.4f}  {score_bar}"
-            )
-        print()
+    if isinstance(data, dict) and "queries" in data:
+        queries = data["queries"]
+    elif isinstance(data, list):
+        queries = data
+    else:
+        return {"error": "invalid_format", "detail": "Expected array or {queries: [...]}"}
 
-        # Kiểm tra tính bất biến của dữ liệu gốc
-        assert "dga_score" not in SAMPLE_QUERIES[0], \
-            "FAIL: Dữ liệu gốc bị sửa đổi — vi phạm immutability!"
-        print("[PASS] Dữ liệu gốc không bị thay đổi (immutability OK).")
-        print("[PASS] Self-test hoàn tất.\n")
+    if not isinstance(queries, list):
+        return {"error": "invalid_format", "detail": "queries must be a list"}
 
-    except FileNotFoundError as e:
-        print(f"\n[ERROR] {e}\n")
+    return queries
+
+
+def score_dga_file(
+    input_path: str,
+    output_path: str,
+    model_path: str | Path = MODEL_PATH,
+) -> dict[str, Any]:
+    """
+    File-based wrapper for the Pi chain.
+
+    Reads `dns_queries.json`, writes `dga_scores.json`, and returns a small
+    processing summary. Invalid records are skipped so one malformed query does
+    not stop the whole parallel Stage 2 branch.
+    """
+    loaded = _load_queries(input_path)
+    if isinstance(loaded, dict) and "error" in loaded:
+        return loaded
+
+    valid_queries: list[dict[str, Any]] = []
+    skipped = 0
+    for query in loaded:
+        if not isinstance(query, dict):
+            skipped += 1
+            continue
+        if "query_id" not in query or "domain" not in query:
+            skipped += 1
+            continue
+        valid_queries.append(query)
+
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if not valid_queries:
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump([], f, indent=2)
+        return {
+            "total_processed": 0,
+            "skipped_count": skipped,
+            "output_file": str(output_file),
+        }
+
+    try:
+        scored = score_dga(valid_queries, model_path=model_path)
+    except FileNotFoundError as exc:
+        return {"error": "model_not_found", "path": str(model_path), "detail": str(exc)}
+    except ValueError as exc:
+        return {"error": "invalid_input", "detail": str(exc)}
+    except Exception as exc:
+        return {"error": "scoring_failed", "detail": str(exc)}
+
+    rows = [
+        {
+            "query_id": record["query_id"],
+            "domain": record["domain"],
+            "label": record.get("label", "unknown"),
+            "dga_score": record["dga_score"],
+            "source": record.get("source", "unknown"),
+        }
+        for record in scored
+    ]
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(rows, f, indent=2)
+
+    log.info("Processed %s DGA queries; skipped %s", len(rows), skipped)
+    log.info("Saved -> %s", output_file)
+
+    return {
+        "total_processed": len(rows),
+        "skipped_count": skipped,
+        "output_file": str(output_file),
+    }
+
+
+def _print_usage() -> None:
+    print("Usage:")
+    print("  python -m tools.dga_model score <input_json> <output_json> [model_path]")
+    print()
+    print("Example:")
+    print("  python -m tools.dga_model score \\")
+    print("    data/output/dns_queries.json \\")
+    print("    data/output/dga_scores.json \\")
+    print("    models/dga_model.pkl")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or sys.argv[1] != "score":
+        _print_usage()
         sys.exit(1)
+
+    if len(sys.argv) < 4:
+        _print_usage()
+        sys.exit(1)
+
+    cli_input_path = sys.argv[2]
+    cli_output_path = sys.argv[3]
+    cli_model_path = sys.argv[4] if len(sys.argv) > 4 else MODEL_PATH
+
+    result = score_dga_file(cli_input_path, cli_output_path, cli_model_path)
+    if "error" in result:
+        print(f"[ERROR] {result}")
+        sys.exit(1)
+
+    print(f"[OK] Processed {result['total_processed']} queries")
+    print(f"[OK] Skipped {result['skipped_count']} malformed queries")
+    print(f"[OK] Output: {result['output_file']}")

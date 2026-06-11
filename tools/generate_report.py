@@ -15,6 +15,9 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
 THRESHOLD = 0.6
+DGA_HIGH_THRESHOLD = 0.75
+ENTROPY_EMBED_ENTROPY_THRESHOLD = 0.65
+ENTROPY_EMBED_EMBED_THRESHOLD = 0.85
 
 
 def _load_scores(input_path: str) -> list[dict[str, Any]] | dict[str, Any]:
@@ -53,6 +56,14 @@ def _score_value(record: dict[str, Any], field: str) -> float:
 def _percent(part: int, total: int) -> float:
     """Avoid ZeroDivisionError when generating empty reports."""
     return (part / total * 100) if total else 0.0
+
+
+def _format_reasons(record: dict[str, Any]) -> str:
+    """Format risk reason codes for a compact Markdown table cell."""
+    reasons = record.get("risk_reasons", [])
+    if not isinstance(reasons, list) or not reasons:
+        return "-"
+    return ", ".join(str(reason) for reason in reasons)
 
 
 def generate_report(input_path: str, output_path: str, top_n: int = 10) -> Dict[str, Any]:
@@ -94,7 +105,11 @@ def generate_report(input_path: str, output_path: str, top_n: int = 10) -> Dict[
             f"- **Suspected exfiltration attempts:** {suspected_count:,} "
             f"({_percent(suspected_count, total):.1f}%)"
         ),
-        f"- **Detection threshold:** {THRESHOLD} (combined score)",
+        f"- **Weighted-score threshold:** {THRESHOLD}",
+        (
+            "- **Hybrid rule:** suspected when weighted score is high, "
+            "DGA probability is high, or entropy and embedding agree"
+        ),
     ]
 
     if total == 0:
@@ -106,8 +121,8 @@ def generate_report(input_path: str, output_path: str, top_n: int = 10) -> Dict[
         "",
         f"## Top {top_n} Suspicious Domains",
         "",
-        "| Rank | Domain | Entropy | DGA | Embed | Combined | Verdict |",
-        "|------|--------|---------|-----|-------|----------|---------|",
+        "| Rank | Domain | Entropy | DGA | Embed | Combined | Verdict | Reasons |",
+        "|------|--------|---------|-----|-------|----------|---------|---------|",
     ])
 
     if top_domains:
@@ -118,10 +133,11 @@ def generate_report(input_path: str, output_path: str, top_n: int = 10) -> Dict[
                 f"{_score_value(domain, 'dga_score'):.2f} | "
                 f"{_score_value(domain, 'embed_score'):.2f} | "
                 f"**{_score_value(domain, 'combined_score'):.2f}** | "
-                f"{domain.get('verdict', 'unknown')} |"
+                f"{domain.get('verdict', 'unknown')} | "
+                f"{_format_reasons(domain)} |"
             )
     else:
-        report_lines.append("| - | No records available | - | - | - | - | - |")
+        report_lines.append("| - | No records available | - | - | - | - | - | - |")
 
     report_lines.extend([
         "",
@@ -142,6 +158,15 @@ def generate_report(input_path: str, output_path: str, top_n: int = 10) -> Dict[
         "3. **Embedding Similarity (30% weight)**",
         "   - TF-IDF character n-grams with nearest benign reference scoring",
         "   - Measures lexical distance from known benign DNS strings",
+        "",
+        "### Hybrid Verdict Rule",
+        "",
+        f"- Weighted score >= {THRESHOLD}",
+        f"- Or DGA score >= {DGA_HIGH_THRESHOLD}",
+        (
+            f"- Or entropy_norm >= {ENTROPY_EMBED_ENTROPY_THRESHOLD} "
+            f"and embed_score >= {ENTROPY_EMBED_EMBED_THRESHOLD}"
+        ),
         "",
         "### Source Distribution",
         "",

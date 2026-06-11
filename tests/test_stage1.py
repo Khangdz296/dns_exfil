@@ -6,11 +6,15 @@ Run:
     python -m pytest tests/test_stage1.py -v
 """
 
+import os
 import json
 import tempfile
 from pathlib import Path
 
 import pytest
+
+os.environ.setdefault("WINDIR", r"C:\Windows")
+
 from scapy.all import IP, UDP, DNS, DNSQR, wrpcap
 
 
@@ -110,6 +114,63 @@ class TestPcapReader:
         result = read_pcap_file(str(sample_pcap), max_packets=1)
 
         assert len(result) == 1
+
+    def test_capture_live_dns_uses_sniff(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        Path("data/output").mkdir(parents=True, exist_ok=True)
+
+        from tools import pcap_reader
+
+        pkt = (
+            IP(src="192.168.1.10", dst="8.8.8.8")
+            / UDP(sport=49152, dport=53)
+            / DNS(rd=1, qd=DNSQR(qname="live.example.com"))
+        )
+        calls = {}
+
+        def fake_sniff(**kwargs):
+            calls.update(kwargs)
+            return [pkt]
+
+        monkeypatch.setattr(pcap_reader, "sniff", fake_sniff)
+
+        result = pcap_reader.capture_live_dns(
+            interface="test0",
+            timeout=1,
+            max_packets=5,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["src_ip"] == "192.168.1.10"
+        assert result[0]["dst_port"] == 53
+        assert result[0]["protocol"] == "UDP"
+        assert calls["iface"] == "test0"
+        assert calls["timeout"] == 1
+        assert calls["count"] == 5
+        assert calls["filter"] == "udp port 53 or tcp port 53"
+
+        output = tmp_path / "data/output/raw_packets.json"
+        assert output.exists()
+        data = json.loads(output.read_text())
+        assert len(data) == 1
+
+    def test_capture_live_dns_failure(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        Path("data/output").mkdir(parents=True, exist_ok=True)
+
+        from tools import pcap_reader
+
+        def fake_sniff(**kwargs):
+            raise RuntimeError("no capture permission")
+
+        monkeypatch.setattr(pcap_reader, "sniff", fake_sniff)
+
+        result = pcap_reader.capture_live_dns(timeout=1)
+
+        assert isinstance(result, dict)
+        assert result["error"] == "capture_failed"
+        assert "no capture permission" in result["detail"]
 
 
 # ── dns_extractor tests ───────────────────────────────────────────────────────

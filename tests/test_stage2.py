@@ -1,6 +1,6 @@
 """
 tests/test_stage2.py
-Unit tests for Stage 2 embedding tool.
+Unit tests for Stage 2 DGA and embedding tools.
 
 Run:
     python -m pytest tests/test_stage2.py -v
@@ -55,6 +55,87 @@ def sample_queries_json(tmp_path):
     json_path = tmp_path / "dns_queries.json"
     json_path.write_text(json.dumps(queries), encoding="utf-8")
     return json_path
+
+
+class TestDgaClassifier:
+
+    def test_score_dga_file_writes_output(self, sample_queries_json, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        Path("data/output").mkdir(parents=True, exist_ok=True)
+
+        import numpy as np
+        import tools.dga_model as dga_model
+
+        class FakeModel:
+            def predict_proba(self, feature_matrix):
+                scores = np.array([0.1, 0.2, 0.9], dtype=float)
+                return np.column_stack([1.0 - scores, scores])
+
+        monkeypatch.setattr(dga_model, "_load_model", lambda model_path: FakeModel())
+
+        output_path = "data/output/dga_scores.json"
+        result = dga_model.score_dga_file(
+            str(sample_queries_json),
+            output_path,
+            "models/fake_dga_model.pkl",
+        )
+
+        assert "error" not in result
+        assert result["total_processed"] == 3
+        assert Path(output_path).exists()
+
+        rows = json.loads(Path(output_path).read_text(encoding="utf-8"))
+        assert len(rows) == 3
+        assert {"query_id", "domain", "label", "dga_score", "source"} <= set(rows[0].keys())
+        assert rows[0]["dga_score"] == 0.1
+        assert rows[2]["dga_score"] == 0.9
+
+    def test_score_dga_file_skips_malformed_queries(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        Path("data/output").mkdir(parents=True, exist_ok=True)
+
+        import numpy as np
+        import tools.dga_model as dga_model
+
+        class FakeModel:
+            def predict_proba(self, feature_matrix):
+                scores = np.array([0.7], dtype=float)
+                return np.column_stack([1.0 - scores, scores])
+
+        monkeypatch.setattr(dga_model, "_load_model", lambda model_path: FakeModel())
+
+        queries = [
+            {"query_id": 1, "domain": "xk29ab.tunnel.net", "label": "malicious"},
+            {"query_id": 2, "label": "missing-domain"},
+            {"domain": "missing-id.test"},
+        ]
+        input_path = Path("dns_queries.json")
+        input_path.write_text(json.dumps(queries), encoding="utf-8")
+
+        result = dga_model.score_dga_file(
+            str(input_path),
+            "data/output/dga_scores.json",
+            "models/fake_dga_model.pkl",
+        )
+        rows = json.loads(Path("data/output/dga_scores.json").read_text(encoding="utf-8"))
+
+        assert result["total_processed"] == 1
+        assert result["skipped_count"] == 2
+        assert rows[0]["domain"] == "xk29ab.tunnel.net"
+        assert rows[0]["dga_score"] == 0.7
+
+    def test_score_dga_file_missing_model_returns_error(self, sample_queries_json, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        from tools.dga_model import score_dga_file
+
+        result = score_dga_file(
+            str(sample_queries_json),
+            "data/output/dga_scores.json",
+            "models/missing_dga_model.pkl",
+        )
+
+        assert result["error"] == "model_not_found"
 
 
 class TestEmbeddingScorer:

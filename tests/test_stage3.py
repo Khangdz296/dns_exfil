@@ -128,6 +128,57 @@ class TestAggregateScores:
         assert sources["google.com"] == "csv"
         assert sources["a3f9bc12.evil.com"] == "pcap"
 
+    def test_entropy_embedding_agreement_flags_suspected(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        output_dir = Path("data/output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        entropy = [
+            {
+                "query_id": 1,
+                "domain": "hexchunk.exfil.test",
+                "label": "malicious",
+                "source": "pcap",
+                "entropy_score": 3.6,
+            },
+        ]
+        dga = [
+            {
+                "query_id": 1,
+                "domain": "hexchunk.exfil.test",
+                "label": "malicious",
+                "source": "pcap",
+                "dga_score": 0.02,
+            },
+        ]
+        embed = [
+            {
+                "query_id": 1,
+                "domain": "hexchunk.exfil.test",
+                "label": "malicious",
+                "source": "pcap",
+                "embed_score": 0.95,
+            },
+        ]
+        Path("data/output/entropy_scores.json").write_text(json.dumps(entropy), encoding="utf-8")
+        Path("data/output/dga_scores.json").write_text(json.dumps(dga), encoding="utf-8")
+        Path("data/output/embed_scores.json").write_text(json.dumps(embed), encoding="utf-8")
+
+        from tools.aggregate_scores import aggregate_scores
+
+        result = aggregate_scores(
+            "data/output/entropy_scores.json",
+            "data/output/dga_scores.json",
+            "data/output/embed_scores.json",
+            "data/output/scores.json",
+        )
+        scores = json.loads(Path("data/output/scores.json").read_text(encoding="utf-8"))
+
+        assert result["suspected_count"] == 1
+        assert scores[0]["combined_score"] < 0.6
+        assert scores[0]["verdict"] == "suspected"
+        assert "entropy_embedding_agreement" in scores[0]["risk_reasons"]
+
     def test_mismatched_query_ids_are_skipped(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         output_dir = Path("data/output")
@@ -258,6 +309,8 @@ class TestGenerateReport:
         assert "# DNS Exfiltration Detection Report" in report
         assert "Executive Summary" in report
         assert "Top" in report and "Suspicious Domains" in report
+        assert "Reasons" in report
+        assert "Hybrid Verdict Rule" in report
         assert "Source Distribution" in report
         assert "**csv:** 1 queries" in report
         assert "**pcap:** 1 queries" in report
