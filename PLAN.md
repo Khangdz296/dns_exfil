@@ -92,7 +92,8 @@ dns-exfiltration-detector/
 |       |-- dga_scores.json
 |       |-- embed_scores.json
 |       |-- scores.json
-|       `-- exfil_report.md
+|       |-- exfil_report.md
+|       `-- pipeline.log
 |-- models/
 |   |-- dga_model.pkl
 |   `-- embed_model.pkl
@@ -298,6 +299,8 @@ Report sections:
 5. Source Distribution
 6. Recommendations
 
+All pipeline tools also write execution logs to `data/output/pipeline.log`.
+
 ---
 
 ## 5. Chain Structure
@@ -415,15 +418,20 @@ produces many high-confidence suspected DNS tunneling records.
 Before the oral test, verify:
 
 - [ ] `python -m pytest tests/test_stage2.py tests/test_stage3.py -q` passes.
+- [ ] `python -m tools.run_pipeline --mode pcap --input data/input/demo.pcap`
+      runs end-to-end.
 - [ ] Stage 1 offline mode works in the local environment with Scapy.
 - [ ] Pipeline runs end-to-end on a PCAP input.
 - [ ] Optional live capture mode works with tcpdump, libpcap/Npcap, and
   capture privileges.
 - [ ] Pipeline runs end-to-end on a CSV input.
 - [ ] `data/output/exfil_report.md` is generated.
+- [ ] `data/output/pipeline.log` contains the execution trail.
 - [ ] Report contains suspected domains, score breakdown, source distribution,
       and risk reasons.
 - [ ] Stage 2 parallelism is visible in `.pi/prompts/dns_exfil.chain.md`.
+- [ ] `pipeline.log` contains `STAGE 2 PARALLEL START` and subagent start/end
+      lines.
 
 ---
 

@@ -7,7 +7,6 @@ writes raw_packets.json for dns_extractor_agent.
 """
 
 import json
-import logging
 import os
 import shutil
 import subprocess
@@ -16,9 +15,9 @@ from pathlib import Path
 os.environ.setdefault("WINDIR", r"C:\Windows")
 
 from scapy.all import IP, IPv6, TCP, UDP, PcapReader
+from tools.logging_utils import setup_pipeline_logger
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-log = logging.getLogger(__name__)
+log = setup_pipeline_logger(__name__)
 
 OUTPUT_PATH = Path("data/output/raw_packets.json")
 DEFAULT_LIVE_PCAP = Path("data/output/live_capture.pcap")

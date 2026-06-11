@@ -10,7 +10,6 @@ Outputs data/output/dns_queries.json consumed by all Stage-2 agents.
 """
 
 import json
-import logging
 import os
 from collections import Counter
 from pathlib import Path
@@ -20,9 +19,9 @@ os.environ.setdefault("WINDIR", r"C:\Windows")
 import pandas as pd
 import tldextract
 from scapy.layers.dns import DNS, DNSQR
+from tools.logging_utils import setup_pipeline_logger
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-log = logging.getLogger(__name__)
+log = setup_pipeline_logger(__name__)
 
 OUTPUT_PATH = Path("data/output/dns_queries.json")
 TLD_EXTRACTOR = tldextract.TLDExtract(suffix_list_urls=None)
