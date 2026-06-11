@@ -83,6 +83,8 @@ print(f"Extracted {len(queries)} DNS queries")
 ## Notes
 
 - PCAP mode: only QR=0 (query) packets are kept; responses are discarded.
+- Domain parsing uses `TLDExtract(suffix_list_urls=None)` for deterministic,
+  offline Public Suffix List behavior.
 - CSV mode: `timestamp`, `src_ip`, `query_type` are set to defaults
   (`0.0`, `"0.0.0.0"`, `"A"`) since the dataset does not include them.
 - Malformed payloads are skipped with a warning log entry.

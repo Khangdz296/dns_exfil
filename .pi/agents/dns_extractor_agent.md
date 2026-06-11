@@ -54,6 +54,8 @@ domains — that is Stage 2's job.
 ## Normalization rules
 - Lowercase all domain names.
 - Strip trailing dots (PCAP artifact).
+- Use the bundled Public Suffix List snapshot only; do not fetch suffix data
+  from the network at runtime.
 - Skip records where `domain` is empty or cannot be parsed.
 - Log a warning for each skipped record.
 
