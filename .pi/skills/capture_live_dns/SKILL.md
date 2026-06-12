@@ -22,7 +22,7 @@ capture_live_dns(
     interface: str | None = None,
     timeout: int = 30,
     max_packets: int = 1_000,
-    output_pcap: str = "data/output/live_capture.pcap",
+    output_pcap: str = "data/input/live_capture.pcap",
 ) -> list[dict] | dict
 ```
 
@@ -110,7 +110,7 @@ packets = capture_live_dns(
     interface="eth0",
     timeout=45,
     max_packets=1000,
-    output_pcap="data/output/live_dns_45s.pcap",
+    output_pcap="data/input/live_dns_45s.pcap",
 )
 ```
 

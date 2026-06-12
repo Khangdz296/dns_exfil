@@ -20,7 +20,7 @@ from tools.logging_utils import setup_pipeline_logger
 log = setup_pipeline_logger(__name__)
 
 OUTPUT_PATH = Path("data/output/raw_packets.json")
-DEFAULT_LIVE_PCAP = Path("data/output/live_capture.pcap")
+DEFAULT_LIVE_PCAP = Path("data/input/live_capture.pcap")
 LIVE_DNS_FILTER = "udp dst port 53 or tcp dst port 53"
 
 

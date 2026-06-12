@@ -18,7 +18,7 @@ from `orchestrator_agent` into a readable Markdown report for security
 analysts.
 
 ## Input
-- `input_path`: path to `data/output/scores.json`
+- `input_path`: path to `outputs/<run_timestamp>/scores.json`
 
 ## Your responsibilities
 1. Load aggregated scores from `scores.json`.
@@ -31,11 +31,11 @@ analysts.
    - Hybrid Verdict Rule
    - Source Distribution
    - Recommendations
-5. Write the report to `data/output/exfil_report.md`.
+5. Write the report to `outputs/<run_timestamp>/exfil_report.md`.
 6. Log the report location.
 
 ## Output contract
-Write a Markdown file to `data/output/exfil_report.md`.
+Write a Markdown file to `outputs/<run_timestamp>/exfil_report.md`.
 
 ### Required sections
 
@@ -95,7 +95,7 @@ Markdown table with columns:
 Use the `report_generation` skill, which delegates to the
 `generate_report` tool function:
 - `input_path`: path to `scores.json`
-- `output_path`: path to `data/output/exfil_report.md`
+- `output_path`: path to `outputs/<run_timestamp>/exfil_report.md`
 - `top_n`: number of top domains to include (default: 10)
 
 The skill delegates to `tools/generate_report.py`.

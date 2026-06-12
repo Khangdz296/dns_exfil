@@ -154,6 +154,7 @@ h2 { font-size: 19px; margin-bottom: 0; letter-spacing: -.02em; }
   color: var(--text); background: #091613; outline: none;
 }
 .field select:focus, .field input:focus { border-color: var(--accent); }
+.field-hint { color: var(--muted); font-size: 10px; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .architecture-panel { display: flex; flex-direction: column; }

@@ -32,11 +32,11 @@ references built from TF-IDF character n-grams.
 4. If the subdomain is present and informative (length ≥ 3), score it with the subdomain branch.
 5. Otherwise, fall back to the full-domain branch.
 6. Compute `embed_score = 1 - max_benign_similarity` from the selected branch.
-7. Write the result to `data/output/embed_scores.json`.
+7. Write the result to `outputs/<run_timestamp>/embed_scores.json`.
 8. Log total queries processed, subdomain-path count, domain-fallback count, and count of high-distance domains (> 0.6).
 
 ## Output contract
-Write a JSON array to `data/output/embed_scores.json`.
+Write a JSON array to `outputs/<run_timestamp>/embed_scores.json`.
 Each item must contain:
 
 | Field         | Type    | Description                                    |
@@ -131,7 +131,7 @@ This training step:
 ## Tool usage
 Use the `calculate_embed_scores` skill with:
 - `input`: path to `dns_queries.json`
-- `output`: path to `data/output/embed_scores.json`
+- `output`: path to `outputs/<run_timestamp>/embed_scores.json`
 - `model`: path to trained model (optional, defaults to `models/embed_model.pkl`)
 
 The skill delegates to `tools/embed_score.py` for computation.

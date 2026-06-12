@@ -8,7 +8,7 @@ tools/train_dga_model.py.
 Public APIs:
 - score_dga(queries, model_path): in-memory scoring for agent/tool calls.
 - score_dga_file(input_path, output_path, model_path): file-based wrapper for
-  the Pi chain, writing data/output/dga_scores.json.
+  the Pi chain, writing outputs/<run_timestamp>/dga_scores.json.
 """
 
 from __future__ import annotations
@@ -218,7 +218,7 @@ def _print_usage() -> None:
     print("Example:")
     print("  python -m tools.dga_model score \\")
     print("    data/output/dns_queries.json \\")
-    print("    data/output/dga_scores.json \\")
+    print("    outputs/20260612_153045_123456/dga_scores.json \\")
     print("    models/dga_model.pkl")
 
 

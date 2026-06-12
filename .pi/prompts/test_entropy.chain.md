@@ -3,4 +3,4 @@
 ## Stage 2a (isolated test)
 run: entropy_agent
   input: data/output/dns_queries.json
-  output: data/output/entropy_scores.json
+  output: outputs/<run_timestamp>/entropy_scores.json

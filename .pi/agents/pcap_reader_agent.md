@@ -31,7 +31,7 @@ You do NOT decode DNS records; that is dns_extractor_agent's job.
 - `timeout`: capture duration in seconds. Default: 30.
 - `max_packets`: maximum DNS query packets to capture. Default: 1,000.
 - `output_pcap`: capture file path. Default:
-  `data/output/live_capture.pcap`.
+  `data/input/live_capture.pcap`.
 - Tool: `capture_live_dns(interface, timeout, max_packets, output_pcap)`.
 
 For live mode, use the capture filter:

@@ -1,3 +1,8 @@
+---
+name: entropy-analysis
+description: Calculate DNS subdomain entropy scores for exfiltration and DGA detection.
+---
+
 # SKILL: entropy_analysis
 
 ## Purpose
@@ -60,7 +65,7 @@ from tools.shannon_entropy import calculate_entropy
 
 result = calculate_entropy(
     input_path="data/output/dns_queries.json",
-    output_path="data/output/entropy_scores.json"
+    output_path="outputs/<run_timestamp>/entropy_scores.json"
 )
 
 print(f"Processed {result['total_processed']} queries")

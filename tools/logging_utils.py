@@ -1,20 +1,23 @@
 """
 Shared logging setup for pipeline tools.
 
-Each tool logs to both the console and data/output/pipeline.log so Pi runs and
-manual CLI runs leave an execution trail for demos and reports.
+Each tool logs to both the console and a timestamped file under logs/ so every
+pipeline run leaves its own execution trail.
 """
 
 import logging
+import os
+from datetime import datetime
 from pathlib import Path
 
-LOG_PATH = Path("data/output/pipeline.log")
+RUN_ID = f"{datetime.now():%Y%m%d_%H%M%S_%f}_{os.getpid()}"
+LOG_PATH = Path("logs") / f"pipeline_{RUN_ID}.log"
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_pipeline_logger(name: str) -> logging.Logger:
-    """Return a logger configured for console and shared pipeline file output."""
+    """Return a logger configured for console and this run's log file."""
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
     logger.propagate = False

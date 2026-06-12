@@ -134,7 +134,7 @@ dns-exfiltration-detector/
 **Tool functions:**
 - `read_pcap_file(filepath, max_packets=10000)`
 - `capture_live_dns(interface=None, timeout=30, max_packets=1000,
-  output_pcap="data/output/live_capture.pcap")`
+  output_pcap="data/input/live_capture.pcap")`
 - `extract_dns_queries(packets=None, csv_path=None)`
 
 **Output schema: `dns_queries.json`**

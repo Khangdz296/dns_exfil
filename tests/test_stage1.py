@@ -155,7 +155,7 @@ class TestPcapReader:
             interface="test0",
             timeout=1,
             max_packets=5,
-            output_pcap="data/output/test-live.pcap",
+            output_pcap="data/input/test-live.pcap",
         )
 
         assert isinstance(result, list)
@@ -169,7 +169,7 @@ class TestPcapReader:
         assert command[-1] == "udp dst port 53 or tcp dst port 53"
         assert calls["timeout"] == 1
         assert calls["popen_kwargs"]["text"] is True
-        assert (tmp_path / "data/output/test-live.pcap").exists()
+        assert (tmp_path / "data/input/test-live.pcap").exists()
 
         output = tmp_path / "data/output/raw_packets.json"
         assert output.exists()

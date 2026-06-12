@@ -9,8 +9,9 @@ strings typical of DGA domains and DNS exfiltration.
 import json
 import logging
 import math
-from pathlib import Path
 from collections import Counter
+from datetime import datetime
+from pathlib import Path
 
 from tools.logging_utils import setup_pipeline_logger
 
@@ -136,7 +137,11 @@ if __name__ == "__main__":
     import sys
 
     input_path = sys.argv[1] if len(sys.argv) > 1 else "data/output/dns_queries.json"
-    output_path = sys.argv[2] if len(sys.argv) > 2 else "data/output/entropy_scores.json"
+    output_path = (
+        sys.argv[2]
+        if len(sys.argv) > 2
+        else f"outputs/{datetime.now():%Y%m%d_%H%M%S_%f}/entropy_scores.json"
+    )
 
     result = calculate_entropy(input_path, output_path)
 

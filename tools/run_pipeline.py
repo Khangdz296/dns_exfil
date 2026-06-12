@@ -11,9 +11,11 @@ demo/review:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -22,20 +24,41 @@ from tools.dga_model import score_dga_file
 from tools.dns_extractor import extract_dns_queries
 from tools.embed_score import calculate_embed_scores
 from tools.generate_report import generate_report
-from tools.logging_utils import setup_pipeline_logger
+from tools.logging_utils import LOG_PATH, setup_pipeline_logger
 from tools.pcap_reader import capture_live_dns, read_pcap_file
 from tools.shannon_entropy import calculate_entropy
 
 log = setup_pipeline_logger("pipeline")
 
-OUTPUT_DIR = Path("data/output")
-RAW_PACKETS_PATH = OUTPUT_DIR / "raw_packets.json"
-DNS_QUERIES_PATH = OUTPUT_DIR / "dns_queries.json"
+STAGE1_OUTPUT_DIR = Path("data/output")
+OUTPUT_ROOT = Path("outputs")
+DEFAULT_OUTPUT_RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+OUTPUT_DIR = OUTPUT_ROOT / DEFAULT_OUTPUT_RUN_ID
+RAW_PACKETS_PATH = STAGE1_OUTPUT_DIR / "raw_packets.json"
+DNS_QUERIES_PATH = STAGE1_OUTPUT_DIR / "dns_queries.json"
 ENTROPY_SCORES_PATH = OUTPUT_DIR / "entropy_scores.json"
 DGA_SCORES_PATH = OUTPUT_DIR / "dga_scores.json"
 EMBED_SCORES_PATH = OUTPUT_DIR / "embed_scores.json"
 SCORES_PATH = OUTPUT_DIR / "scores.json"
 REPORT_PATH = OUTPUT_DIR / "exfil_report.md"
+
+
+def configure_output_dir(run_id: str) -> Path:
+    """Point Stage 2/3 artifacts at one timestamped run directory."""
+    if re.fullmatch(r"\d{8}_\d{6}_\d{6}", run_id) is None:
+        raise ValueError("run_id must use YYYYMMDD_HHMMSS_microseconds")
+
+    global OUTPUT_DIR
+    global ENTROPY_SCORES_PATH, DGA_SCORES_PATH, EMBED_SCORES_PATH
+    global SCORES_PATH, REPORT_PATH
+
+    OUTPUT_DIR = OUTPUT_ROOT / run_id
+    ENTROPY_SCORES_PATH = OUTPUT_DIR / "entropy_scores.json"
+    DGA_SCORES_PATH = OUTPUT_DIR / "dga_scores.json"
+    EMBED_SCORES_PATH = OUTPUT_DIR / "embed_scores.json"
+    SCORES_PATH = OUTPUT_DIR / "scores.json"
+    REPORT_PATH = OUTPUT_DIR / "exfil_report.md"
+    return OUTPUT_DIR
 
 
 def _is_error(result: Any) -> bool:
@@ -208,14 +231,22 @@ def run_stage3(args: argparse.Namespace) -> dict[str, Any]:
 
 def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     """Run the complete pipeline and return a compact processing summary."""
+    run_id = getattr(
+        args,
+        "run_id",
+        datetime.now().strftime("%Y%m%d_%H%M%S_%f"),
+    )
+    configure_output_dir(run_id)
     started = time.perf_counter()
+    STAGE1_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     log.info("=" * 72)
     log.info(
-        "PIPELINE START | mode=%s | input=%s | parallel_stage=2",
+        "PIPELINE START | mode=%s | input=%s | output_dir=%s | parallel_stage=2",
         args.mode,
         args.input if args.mode != "live" else args.interface or "default",
+        OUTPUT_DIR,
     )
 
     queries = run_stage1(args)
@@ -224,6 +255,8 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
 
     elapsed = time.perf_counter() - started
     summary = {
+        "run_id": OUTPUT_DIR.name,
+        "output_dir": str(OUTPUT_DIR),
         "mode": args.mode,
         "query_count": len(queries),
         "stage2_agents": sorted(stage2),
@@ -261,6 +294,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dga-model", default="models/dga_model.pkl", help="DGA model path.")
     parser.add_argument("--embed-model", default="models/embed_model.pkl", help="Embedding model path.")
     parser.add_argument("--top-n", type=int, default=10, help="Top suspicious domains in report.")
+    parser.add_argument(
+        "--run-id",
+        default=DEFAULT_OUTPUT_RUN_ID,
+        help="Timestamp identifier used as the outputs subdirectory name.",
+    )
     return parser
 
 
@@ -279,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[OK] Queries: {summary['query_count']}")
     print(f"[OK] Scores: {summary['scores_file']}")
     print(f"[OK] Report: {summary['report_file']}")
-    print("[OK] Log: data/output/pipeline.log")
+    print(f"[OK] Log: {LOG_PATH}")
     return 0
 
 

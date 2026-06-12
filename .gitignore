@@ -39,5 +39,9 @@ desktop.ini
 data/input/
 data/output/
 data/web_jobs/
+logs/*
+!logs/.gitkeep
+outputs/*
+!outputs/.gitkeep
 models/
 npw/

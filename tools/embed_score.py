@@ -515,7 +515,10 @@ if __name__ == "__main__":
         print()
         print("Examples:")
         print("  python embed_score.py train data/input/merged.csv models/embed_model.pkl")
-        print("  python embed_score.py score data/output/dns_queries.json data/output/embed_scores.json")
+        print(
+            "  python embed_score.py score data/output/dns_queries.json "
+            "outputs/20260612_153045_123456/embed_scores.json"
+        )
         sys.exit(1)
 
     mode = sys.argv[1]

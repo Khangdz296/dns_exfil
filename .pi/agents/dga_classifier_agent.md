@@ -20,18 +20,18 @@ model, and write DGA scores for downstream merging.
 ## Input
 - `input_path`: `data/output/dns_queries.json` produced by `dns_extractor_agent`
 - `model_path`: `models/dga_model.pkl`
-- `output_path`: `data/output/dga_scores.json`
+- `output_path`: `outputs/<run_timestamp>/dga_scores.json`
 
 ## Responsibilities
 1. Validate that `dns_queries.json` exists and contains a JSON array.
 2. Invoke `score_dga_file` with the complete input file.
 3. Preserve `query_id`, `domain`, `label`, and `source` in the output records.
 4. Add `dga_score` to every valid query record.
-5. Write all valid results to `data/output/dga_scores.json`.
+5. Write all valid results to `outputs/<run_timestamp>/dga_scores.json`.
 6. Surface model, JSON, and file errors clearly.
 
 ## Output contract
-Write a JSON array to `data/output/dga_scores.json`.
+Write a JSON array to `outputs/<run_timestamp>/dga_scores.json`.
 Each item must contain:
 
 | Field       | Type    | Description                                    |
@@ -59,7 +59,7 @@ Each item must contain:
 ## Tool usage
 Use the `dga_classifier` skill with:
 - `input_path`: path to `dns_queries.json`
-- `output_path`: path to `data/output/dga_scores.json`
+- `output_path`: path to `outputs/<run_timestamp>/dga_scores.json`
 - `model_path`: path to `models/dga_model.pkl`
 
 The skill delegates to `tools/dga_model.py`.

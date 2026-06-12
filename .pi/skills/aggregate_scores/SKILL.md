@@ -1,3 +1,8 @@
+---
+name: aggregate-scores
+description: Merge Stage 2 DNS analysis scores and calculate final exfiltration verdicts.
+---
+
 # SKILL: aggregate_scores
 
 ## Purpose
@@ -86,10 +91,10 @@ Also writes a JSON array to `output_path`.
 from tools.aggregate_scores import aggregate_scores
 
 result = aggregate_scores(
-    entropy_path="data/output/entropy_scores.json",
-    dga_path="data/output/dga_scores.json",
-    embed_path="data/output/embed_scores.json",
-    output_path="data/output/scores.json",
+    entropy_path="outputs/<run_timestamp>/entropy_scores.json",
+    dga_path="outputs/<run_timestamp>/dga_scores.json",
+    embed_path="outputs/<run_timestamp>/embed_scores.json",
+    output_path="outputs/<run_timestamp>/scores.json",
 )
 
 print(f"Processed {result['total_processed']} records")

@@ -1,9 +1,14 @@
+---
+name: report-generation
+description: Generate a Markdown security report from aggregated DNS exfiltration scores.
+---
+
 # SKILL: report_generation
 
 ## Purpose
 Generate a Markdown security report from aggregated DNS exfiltration scores.
 Used by `report_agent` in Stage 3 after `orchestrator_agent` writes
-`data/output/scores.json`.
+`outputs/<run_timestamp>/scores.json`.
 
 ## Tool function
 `generate_report(input_path: str, output_path: str, top_n: int = 10) -> dict`
@@ -66,8 +71,8 @@ The generated report includes:
 from tools.generate_report import generate_report
 
 result = generate_report(
-    input_path="data/output/scores.json",
-    output_path="data/output/exfil_report.md",
+    input_path="outputs/<run_timestamp>/scores.json",
+    output_path="outputs/<run_timestamp>/exfil_report.md",
     top_n=10,
 )
 

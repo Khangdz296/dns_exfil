@@ -16,13 +16,18 @@ exfiltration pipeline.
 - Read the generated Markdown security report.
 - Keep isolated result snapshots for each web job.
 
-The current pipeline tools write to a shared `data/output` directory, so the
-web job manager intentionally runs one pipeline at a time. Uploaded evidence
-and result snapshots are stored under `data/web_jobs/<job-id>/`.
+Stage 1 writes `raw_packets.json` and `dns_queries.json` to `data/output`.
+Live captures are saved under `data/input`. Stage 2/3 JSON results and the
+Markdown report are written to timestamped directories such as
+`outputs/20260612_153045_123456/`. The web job manager intentionally runs one
+pipeline at a time, with job snapshots under `data/web_jobs/<job-id>/`.
+
+Each pipeline process writes a timestamped execution log under the root-level
+`logs` directory.
 
 Live capture requires `tcpdump` and permission to capture packets. It uses the
 fixed filter `udp dst port 53 or tcp dst port 53`, allows durations from 5 to
-300 seconds, and preserves the generated PCAP in the job output directory.
+300 seconds, and preserves the generated PCAP in the job input directory.
 
 ## Run
 

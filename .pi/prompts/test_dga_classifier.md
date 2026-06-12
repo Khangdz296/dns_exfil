@@ -42,13 +42,13 @@ The file contains a JSON array. Each query follows this structure:
 1. Invoke the `score_dga_file` tool from the `dga_classifier` skill.
 2. Use these paths:
    - `input_path`: `data/output/dns_queries.json`
-   - `output_path`: `data/output/dga_scores.json`
+   - `output_path`: `outputs/<run_timestamp>/dga_scores.json`
    - `model_path`: `models/dga_model.pkl`
 3. The tool will:
    - Load the pre-trained RandomForest model.
    - Extract the same 7 features used during training.
    - Compute `dga_score` for every valid query.
-   - Write `data/output/dga_scores.json`.
+   - Write `outputs/<run_timestamp>/dga_scores.json`.
 4. Return a concise summary:
    - Total number of scored queries.
    - Number of malformed records skipped.
@@ -63,7 +63,7 @@ Return valid JSON with this structure:
 {
   "total_processed": 100,
   "skipped_count": 0,
-  "output_file": "data/output/dga_scores.json"
+  "output_file": "outputs/<run_timestamp>/dga_scores.json"
 }
 ```
 

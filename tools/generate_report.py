@@ -225,7 +225,11 @@ if __name__ == "__main__":
         print("  python generate_report.py <scores_json> <output_md> [top_n]")
         print()
         print("Example:")
-        print("  python generate_report.py data/output/scores.json data/output/exfil_report.md 10")
+        print(
+            "  python generate_report.py "
+            "outputs/20260612_153045_123456/scores.json "
+            "outputs/20260612_153045_123456/exfil_report.md 10"
+        )
         sys.exit(1)
 
     input_path = sys.argv[1]

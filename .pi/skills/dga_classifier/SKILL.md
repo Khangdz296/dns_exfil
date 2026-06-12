@@ -36,7 +36,7 @@ Implementation: `tools/dga_model.py`
 | Parameter     | Type | Required | Description                              |
 |---------------|------|----------|------------------------------------------|
 | `input_path`  | str  | yes      | Path to `data/output/dns_queries.json`   |
-| `output_path` | str  | yes      | Path to write `data/output/dga_scores.json` |
+| `output_path` | str  | yes      | Path to write the run's `dga_scores.json` |
 | `model_path`  | str  | no       | Path to `models/dga_model.pkl`           |
 
 Each input query should contain:
@@ -114,7 +114,7 @@ from tools.dga_model import score_dga_file
 
 result = score_dga_file(
     input_path="data/output/dns_queries.json",
-    output_path="data/output/dga_scores.json",
+    output_path="outputs/<run_timestamp>/dga_scores.json",
     model_path="models/dga_model.pkl",
 )
 

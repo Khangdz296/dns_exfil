@@ -28,8 +28,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 class CaptureRequest(BaseModel):
     interface: str | None = None
-    timeout: int = Field(default=30)
-    max_packets: int = Field(default=1000)
+    timeout: int = Field(default=30, ge=5, le=300)
+    max_packets: int = Field(default=1000, ge=1, le=10_000)
 
 
 def read_agent_description(config_path: Path) -> str:
@@ -176,9 +176,7 @@ def get_report(job_id: str) -> dict[str, str]:
 @app.get("/api/jobs/{job_id}/capture")
 def download_capture(job_id: str) -> FileResponse:
     job = require_job(job_id)
-    capture_path = job.job_dir / "output" / "live_capture.pcap"
-    if not capture_path.exists():
-        capture_path = job.input_path
+    capture_path = job.input_path
     if job.mode != "live" or not capture_path.exists():
         raise HTTPException(status_code=404, detail="Captured PCAP is not available.")
     return FileResponse(

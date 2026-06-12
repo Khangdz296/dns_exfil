@@ -10,6 +10,7 @@ from webapp.job_manager import (
     PipelineJob,
     apply_log_event,
     initial_agents,
+    output_run_id,
     parse_tcpdump_interfaces,
     safe_upload_name,
     summarize_scores,
@@ -32,6 +33,14 @@ def make_job(tmp_path, mode="pcap"):
 def test_safe_upload_name_removes_parent_path():
     assert safe_upload_name("../../capture.pcap") == "capture.pcap"
     assert safe_upload_name(r"..\..\capture.pcap") == "capture.pcap"
+
+
+def test_output_run_id_uses_timestamp_format():
+    run_id = output_run_id()
+    assert len(run_id) == 22
+    assert run_id[8] == "_"
+    assert run_id[15] == "_"
+    assert run_id.replace("_", "").isdigit()
 
 
 def test_safe_upload_name_rejects_unsupported_extension():
@@ -127,3 +136,33 @@ def test_summarize_scores(tmp_path):
         "suspected_count": 1,
         "highest_risk_score": 0.92,
     }
+
+
+def test_snapshot_reads_stage_outputs_from_timestamped_directory(
+    tmp_path,
+    monkeypatch,
+):
+    stage1_dir = tmp_path / "data" / "output"
+    pipeline_output = tmp_path / "outputs"
+    run_id = "20260612_153045_123456"
+    run_dir = pipeline_output / run_id
+    stage1_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (stage1_dir / "raw_packets.json").write_text("[]", encoding="utf-8")
+    (stage1_dir / "dns_queries.json").write_text("[]", encoding="utf-8")
+    (run_dir / "scores.json").write_text("[]", encoding="utf-8")
+    (run_dir / "exfil_report.md").write_text("# Report", encoding="utf-8")
+
+    monkeypatch.setattr("webapp.job_manager.STAGE1_OUTPUT", stage1_dir)
+    monkeypatch.setattr("webapp.job_manager.PIPELINE_OUTPUT", pipeline_output)
+
+    manager = JobManager(tmp_path / "jobs")
+    job = make_job(tmp_path / "job")
+    job.output_run_id = run_id
+    manager._snapshot_outputs(job)
+
+    snapshot = job.job_dir / "output"
+    assert (snapshot / "raw_packets.json").exists()
+    assert (snapshot / "dns_queries.json").exists()
+    assert (snapshot / "scores.json").exists()
+    assert (snapshot / "exfil_report.md").exists()

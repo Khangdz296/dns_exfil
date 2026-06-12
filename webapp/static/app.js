@@ -139,6 +139,16 @@ qs("#upload-form").addEventListener("submit", async (event) => {
 qs("#capture-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = qs("#capture-start");
+  const timeout = Number(qs("#capture-timeout").value);
+  const maxPackets = Number(qs("#capture-packets").value);
+  if (!Number.isInteger(timeout) || timeout < 5 || timeout > 300) {
+    qs("#capture-error").textContent = "Duration must be a whole number from 5 to 300 seconds.";
+    return;
+  }
+  if (!Number.isInteger(maxPackets) || maxPackets < 1 || maxPackets > 10000) {
+    qs("#capture-error").textContent = "Packet limit must be from 1 to 10000.";
+    return;
+  }
   button.disabled = true;
   qs("#capture-error").textContent = "";
   try {
@@ -147,8 +157,8 @@ qs("#capture-form").addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         interface: qs("#interface-select").value || null,
-        timeout: Number(qs("#capture-timeout").value),
-        max_packets: Number(qs("#capture-packets").value),
+        timeout,
+        max_packets: maxPackets,
       }),
     });
     useJob(job);

@@ -17,7 +17,8 @@ from typing import Any, BinaryIO
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 JOBS_ROOT = PROJECT_ROOT / "data" / "web_jobs"
-PIPELINE_OUTPUT = PROJECT_ROOT / "data" / "output"
+STAGE1_OUTPUT = PROJECT_ROOT / "data" / "output"
+PIPELINE_OUTPUT = PROJECT_ROOT / "outputs"
 ALLOWED_SUFFIXES = {".pcap", ".pcapng", ".csv"}
 MAX_UPLOAD_BYTES = 512 * 1024 * 1024
 MIN_CAPTURE_SECONDS = 5
@@ -49,6 +50,10 @@ OUTPUT_FILES = (
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def output_run_id() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
 
 def safe_upload_name(filename: str) -> str:
@@ -84,6 +89,7 @@ class PipelineJob:
     agents: dict[str, str] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     capture: dict[str, Any] = field(default_factory=dict)
+    output_run_id: str | None = None
 
     def public_dict(self, include_logs: bool = True) -> dict[str, Any]:
         payload = {
@@ -98,6 +104,7 @@ class PipelineJob:
             "agents": dict(self.agents),
             "summary": dict(self.summary),
             "capture": dict(self.capture),
+            "output_run_id": self.output_run_id,
         }
         if include_logs:
             payload["logs"] = list(self.logs[-500:])
@@ -182,7 +189,7 @@ def validate_interface(interface: str | None) -> str | None:
 
 
 class JobManager:
-    """Own pipeline jobs and serialize access to the pipeline's shared output."""
+    """Own pipeline jobs and serialize access to shared Stage 1 output."""
 
     def __init__(self, jobs_root: Path = JOBS_ROOT) -> None:
         self.jobs_root = jobs_root
@@ -451,6 +458,7 @@ class JobManager:
                 job.finished_at = utc_now()
 
     def _execute_pipeline(self, job: PipelineJob, pipeline_mode: str) -> None:
+        job.output_run_id = output_run_id()
         command = [
             sys.executable,
             "-u",
@@ -460,6 +468,8 @@ class JobManager:
             pipeline_mode,
             "--input",
             str(job.input_path),
+            "--run-id",
+            job.output_run_id,
         ]
         process = subprocess.Popen(
             command,
@@ -488,14 +498,22 @@ class JobManager:
     def _snapshot_outputs(self, job: PipelineJob) -> None:
         output_dir = job.job_dir / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
+        pipeline_run_output = (
+            PIPELINE_OUTPUT / job.output_run_id
+            if job.output_run_id
+            else PIPELINE_OUTPUT
+        )
         for filename in OUTPUT_FILES:
             if job.mode == "csv" and filename == "raw_packets.json":
                 continue
-            source = PIPELINE_OUTPUT / filename
+            source_root = (
+                STAGE1_OUTPUT
+                if filename in {"raw_packets.json", "dns_queries.json"}
+                else pipeline_run_output
+            )
+            source = source_root / filename
             if source.exists():
                 shutil.copy2(source, output_dir / filename)
-        if job.mode == "live" and job.input_path.exists():
-            shutil.copy2(job.input_path, output_dir / "live_capture.pcap")
         (output_dir / "pipeline.log").write_text(
             "\n".join(job.logs) + "\n",
             encoding="utf-8",

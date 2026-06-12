@@ -1,3 +1,8 @@
+---
+name: embedding-scorer
+description: Score DNS queries for anomalies using the trained embedding similarity model.
+---
+
 # SKILL: embedding_scorer
 
 ## Purpose
@@ -107,7 +112,7 @@ from tools.embed_score import calculate_embed_scores
 
 result = calculate_embed_scores(
     input_path="data/output/dns_queries.json",
-    output_path="data/output/embed_scores.json",
+    output_path="outputs/<run_timestamp>/embed_scores.json",
     model_path="models/embed_model.pkl"
 )
 

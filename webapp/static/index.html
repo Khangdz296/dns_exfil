@@ -84,13 +84,17 @@
               </label>
               <div class="field-grid">
                 <label class="field">
-                  <span>Duration</span>
-                  <select id="capture-timeout">
-                    <option value="10">10 seconds</option>
-                    <option value="30" selected>30 seconds</option>
-                    <option value="60">60 seconds</option>
-                    <option value="120">120 seconds</option>
-                  </select>
+                  <span>Duration (seconds)</span>
+                  <input
+                    id="capture-timeout"
+                    type="number"
+                    min="5"
+                    max="300"
+                    step="1"
+                    value="30"
+                    required
+                  >
+                  <small class="field-hint">Enter a value from 5 to 300 seconds.</small>
                 </label>
                 <label class="field">
                   <span>Packet limit</span>

@@ -26,11 +26,11 @@ domains that may indicate exfiltration or DGA activity.
 2. For each query, extract the `subdomain` field.
 3. Calculate Shannon entropy H = -Σ p(x) log₂ p(x) on subdomain characters.
 4. Add an `entropy_score` field (float) to each query.
-5. Write the result to `data/output/entropy_scores.json`.
+5. Write the result to `outputs/<run_timestamp>/entropy_scores.json`.
 6. Log total queries processed and count of high-entropy domains (> 3.5).
 
 ## Output contract
-Write a JSON array to `data/output/entropy_scores.json`.
+Write a JSON array to `outputs/<run_timestamp>/entropy_scores.json`.
 Each item must contain:
 
 | Field           | Type    | Description                                    |
@@ -78,6 +78,6 @@ Each item must contain:
 ## Tool usage
 Use the `calculate_entropy` skill with:
 - `input`: path to `dns_queries.json`
-- `output`: path to `data/output/entropy_scores.json`
+- `output`: path to `outputs/<run_timestamp>/entropy_scores.json`
 
 The skill delegates to `tools/shannon_entropy.py` for computation.

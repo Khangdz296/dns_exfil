@@ -19,9 +19,9 @@ query.
 
 ## Input
 Three JSON files from Stage 2:
-- `data/output/entropy_scores.json`
-- `data/output/dga_scores.json`
-- `data/output/embed_scores.json`
+- `outputs/<run_timestamp>/entropy_scores.json`
+- `outputs/<run_timestamp>/dga_scores.json`
+- `outputs/<run_timestamp>/embed_scores.json`
 
 ## Your responsibilities
 1. Load all 3 score files.
@@ -37,11 +37,11 @@ Three JSON files from Stage 2:
    - otherwise -> `benign`
 7. Add `risk_reasons` explaining which signals triggered.
 8. Preserve `source` from Stage-2 records for report source distribution.
-9. Write enriched results to `data/output/scores.json`.
+9. Write enriched results to `outputs/<run_timestamp>/scores.json`.
 10. Log total processed and suspected count.
 
 ## Output contract
-Write a JSON array to `data/output/scores.json`.
+Write a JSON array to `outputs/<run_timestamp>/scores.json`.
 Each item must contain:
 
 | Field            | Type    | Description                          |
